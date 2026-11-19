@@ -54,7 +54,7 @@ pipeline {
             steps {
                 unstash 'coverage'
                 script {
-                    def scannerHome = tool 'sonar-scanner'
+                    def scannerHome = tool 'SonarScanner'
                     withSonarQubeEnv('sonarqube') {
                         sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectVersion=${env.IMAGE_TAG}"
                     }
