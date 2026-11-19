@@ -26,7 +26,7 @@ spec:
       containers:
         - name: api
           # El pipeline reemplaza esta etiqueta con el SHA (kubectl set image). Nunca "latest".
-          image: ghcr.io/CAMBIA_USUARIO/medisur-pilot:1.0.0-inicial
+          image: ghcr.io/sammmcm/medisur-pilot:1.0.0-inicial
           ports:
             - containerPort: 8000
           envFrom:
