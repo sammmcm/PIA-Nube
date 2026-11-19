@@ -1,12 +1,19 @@
+# Monitoreo
+monitoring/.env
+monitoring/alertmanager/secrets/
+
+# Python
 __pycache__/
 *.pyc
 .pytest_cache/
 .coverage
-coverage.xml
 htmlcov/
+
+# Entornos y credenciales
+venv/
 .venv/
 kubeconfig*
 *.kubeconfig
-.env
-k8s/secret.yaml
+
+# Extras
 docs/

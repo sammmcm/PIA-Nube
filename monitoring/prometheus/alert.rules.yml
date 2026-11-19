@@ -1,0 +1,35 @@
+groups:
+  - name: medisur-alertas
+    rules:
+      # 1) Disco por llenarse: > 80 % en cualquier VM
+      - alert: DiscoPorLlenarse
+        expr: |
+          (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+                / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disco al {{ $value | printf \"%.0f\" }}% en {{ $labels.vm }}"
+          description: "El disco raíz de {{ $labels.vm }} superó el 80 %. Limpia imágenes Docker o artefactos de Jenkins antes de que se caiga."
+
+      # 2) Pod en ciclo de reinicio: más de 3 reinicios en 10 minutos
+      - alert: PodEnCicloDeReinicio
+        expr: increase(kube_pod_container_status_restarts_total{namespace="medisur"}[10m]) > 3
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.pod }} reiniciándose en bucle"
+          description: "{{ $labels.pod }} ({{ $labels.container }}) tuvo más de 3 reinicios en 10 minutos. Posible versión rota: considera `kubectl rollout undo`."
+
+      # 3) Servicio degradado: réplicas listas < deseadas por más de 5 minutos
+      - alert: ServicioDegradado
+        expr: |
+          kube_deployment_status_replicas_ready{namespace="medisur",deployment="medisur-api"}
+            < kube_deployment_spec_replicas{namespace="medisur",deployment="medisur-api"}
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "medisur-api con réplicas listas por debajo de las deseadas"
+          description: "El Deployment medisur-api lleva más de 5 minutos sin todas sus réplicas listas: el despliegue quedó a medias."
