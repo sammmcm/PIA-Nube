@@ -14,7 +14,7 @@ pipeline {
 
     environment {
         REGISTRY   = 'ghcr.io'
-        IMAGE_REPO = 'ghcr.io/CAMBIA_USUARIO/medisur-pilot'   // <-- cambia por tu usuario/organizacion (en minusculas)
+        IMAGE_REPO = 'ghcr.io/sammmcm/medisur-pilot'   // <-- cambia por tu usuario/organizacion (en minusculas)
         BASE_VERSION = '1.0.0'                                  // version semantica base
         NAMESPACE  = 'medisur'
         DEPLOYMENT = 'medisur-api'
