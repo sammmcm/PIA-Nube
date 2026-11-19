@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medisur-api
+  namespace: medisur
+  labels:
+    app: medisur-api
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: medisur-api
+  template:
+    metadata:
+      labels:
+        app: medisur-api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull          # se crea a mano en el cluster (ver guia), no vive en el repo
+      containers:
+        - name: api
+          # El pipeline reemplaza esta etiqueta con el SHA (kubectl set image). Nunca "latest".
+          image: ghcr.io/CAMBIA_USUARIO/medisur-pilot:1.0.0-inicial
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: medisur-config
+          env:
+            - name: API_TOKEN       # ejemplo de secreto consumido desde un Secret del cluster
+              valueFrom:
+                secretKeyRef:
+                  name: medisur-secret
+                  key: api-token
+                  optional: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false

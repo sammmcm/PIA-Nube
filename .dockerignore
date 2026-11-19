@@ -1,0 +1,9 @@
+.git
+**/__pycache__
+.pytest_cache
+.coverage
+coverage.xml
+app/tests
+k8s
+docs
+Jenkinsfile

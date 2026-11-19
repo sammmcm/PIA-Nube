@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+kubeconfig*
+*.kubeconfig
+.env
+k8s/secret.yaml
+docs/
