@@ -7,6 +7,7 @@ metadata:
     app: medisur-api
 spec:
   type: NodePort
+  sessionAffinity: ClientIP
   selector:
     app: medisur-api
   ports:
