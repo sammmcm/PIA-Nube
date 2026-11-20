@@ -48,7 +48,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /noexiste
               port: 8000
             initialDelaySeconds: 3
             periodSeconds: 5
