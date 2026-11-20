@@ -50,6 +50,7 @@ pipeline {
         }
 
         stage('Analisis SonarQube') {
+            when { anyOf { branch 'main'; branch 'demo/quality-gate' } }
             steps {
                 unstash 'coverage'
                 script {
@@ -62,6 +63,7 @@ pipeline {
         }
 
         stage('Quality Gate') {
+            when { anyOf { branch 'main'; branch 'demo/quality-gate' } }
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
@@ -70,6 +72,7 @@ pipeline {
         }
 
         stage('Construir imagen') {
+            when { anyOf { branch 'main'; branch 'demo/rollback' } }
             steps {
                 sh """
                     docker build \
@@ -82,6 +85,7 @@ pipeline {
         }
 
         stage('Publicar imagen') {
+            when { anyOf { branch 'main'; branch 'demo/rollback' } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'ghcr-credentials',
                                                   usernameVariable: 'REG_USER',
