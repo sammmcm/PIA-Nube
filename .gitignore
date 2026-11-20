@@ -17,3 +17,5 @@ kubeconfig*
 
 # Extras
 docs/
+alertmanager/secrets/
+*.tar.gz
