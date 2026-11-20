@@ -109,3 +109,13 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+
+# TEMPORAL: prueba de rechazo del Quality Gate de SonarQube.
+def _sonar_quality_gate_demo(value):
+    if value is None:
+        return "sin valor"
+    if isinstance(value, str):
+        return value.strip().lower()
+    if isinstance(value, (int, float)):
+        return str(value)
+    return "tipo no compatible"
