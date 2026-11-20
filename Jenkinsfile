@@ -1,7 +1,8 @@
 // Pipeline de CI/CD de MediSur (vive en el repositorio, no se configura a clics).
 // Credenciales requeridas en Jenkins (Manage Jenkins > Credentials):
 //   - ghcr-credentials   : usuario + token (write:packages) del registro
-//   - kubeconfig-k8s     : "Secret file" con el kubeconfig de VM-K8S
+//   - kubeconfig-k8s     : "Secret file" con el kubeconfig de VM-K8S (IP privada)
+//   - k8s-node-ip        : "Secret text" con la IP PRIVADA de VM-K8S (para la prueba de humo)   // CAMBIO
 //   - sonar-token        : configurado dentro del servidor "sonarqube" (Manage Jenkins > System)
 pipeline {
     agent any
@@ -14,29 +15,27 @@ pipeline {
 
     environment {
         REGISTRY   = 'ghcr.io'
-        IMAGE_REPO = 'ghcr.io/sammmcm/medisur-pilot'   // <-- cambia por tu usuario/organizacion (en minusculas)
-        BASE_VERSION = '1.0.0'                                  // version semantica base
+        IMAGE_REPO = 'ghcr.io/sammmcm/medisur-pilot'
+        BASE_VERSION = '1.0.0'
         NAMESPACE  = 'medisur'
         DEPLOYMENT = 'medisur-api'
         CONTAINER  = 'api'
     }
 
     stages {
-        // 1) Disparo: lo hace el webhook de GitHub, nadie oprime "construir".
-
-        stage('Checkout') {                       // 2
+        stage('Checkout') {
             steps {
                 checkout scm
                 script {
                     env.GIT_SHA_SHORT = sh(returnStdout: true, script: 'git rev-parse --short=7 HEAD').trim()
-                    env.IMAGE_TAG     = "${BASE_VERSION}-${env.GIT_SHA_SHORT}"   // nunca "latest"
+                    env.IMAGE_TAG     = "${BASE_VERSION}-${env.GIT_SHA_SHORT}"
                     env.BUILD_DATE    = sh(returnStdout: true, script: 'date -u +%Y-%m-%dT%H:%M:%SZ').trim()
                 }
                 echo "Commit: ${env.GIT_SHA_SHORT} | Etiqueta de imagen: ${env.IMAGE_TAG}"
             }
         }
 
-        stage('Dependencias y pruebas') {         // 3 y 4
+        stage('Dependencias y pruebas') {
             agent {
                 docker { image 'python:3.12-slim'; args '-u root' }
             }
@@ -50,7 +49,7 @@ pipeline {
             }
         }
 
-        stage('Analisis SonarQube') {             // 5
+        stage('Analisis SonarQube') {
             steps {
                 unstash 'coverage'
                 script {
@@ -62,7 +61,7 @@ pipeline {
             }
         }
 
-        stage('Quality Gate') {                   // 6  -> bloqueante
+        stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
@@ -70,7 +69,7 @@ pipeline {
             }
         }
 
-        stage('Construir imagen') {               // 7
+        stage('Construir imagen') {
             steps {
                 sh """
                     docker build \
@@ -82,7 +81,7 @@ pipeline {
             }
         }
 
-        stage('Publicar imagen') {                // 8
+        stage('Publicar imagen') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'ghcr-credentials',
                                                   usernameVariable: 'REG_USER',
@@ -96,19 +95,16 @@ pipeline {
             }
         }
 
-        // ---------- Entrega continua: solo se llega aqui si la integracion paso ----------
-        // Solo se despliega desde main (las ramas de funcionalidad llegan hasta la publicacion).
-
-        stage('Desplegar') {                      // 9
+        stage('Desplegar') {
             when { branch 'main' }
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig-k8s', variable: 'KUBECONFIG')]) {
+                    script { env.DEPLOY_TOUCHED = 'true' }
                     sh '''
                         kubectl apply -f k8s/namespace.yaml
                         kubectl apply -f k8s/configmap.yaml -f k8s/service.yaml
-                        kubectl apply -f k8s/deployment.yaml
-                        kubectl -n ${NAMESPACE} set image deployment/${DEPLOYMENT} \
-                            ${CONTAINER}=${IMAGE_REPO}:${IMAGE_TAG}
+                        # CAMBIO: se aplica el Deployment con la imagen nueva en una sola revision
+                        sed "s|image: .*medisur-pilot.*|image: ${IMAGE_REPO}:${IMAGE_TAG}|" k8s/deployment.yaml | kubectl apply -f -
                         kubectl -n ${NAMESPACE} annotate deployment/${DEPLOYMENT} \
                             kubernetes.io/change-cause="${IMAGE_TAG}" --overwrite
                     '''
@@ -116,7 +112,7 @@ pipeline {
             }
         }
 
-        stage('Verificar rollout') {              // 10
+        stage('Verificar rollout') {
             when { branch 'main' }
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig-k8s', variable: 'KUBECONFIG')]) {
@@ -125,10 +121,9 @@ pipeline {
             }
         }
 
-        stage('Prueba de humo') {                 // 11
+        stage('Prueba de humo') {
             when { branch 'main' }
             steps {
-                // NODE_IP = IP publica de VM-K8S; NodePort 30080 definido en k8s/service.yaml
                 withCredentials([string(credentialsId: 'k8s-node-ip', variable: 'NODE_IP')]) {
                     sh '''
                         sleep 5
@@ -141,12 +136,16 @@ pipeline {
     }
 
     post {
-        failure {                                 // 12: reversion automatica si fallo el despliegue
+        failure {
             script {
-                if (env.BRANCH_NAME == 'main' && env.STAGE_NAME in ['Desplegar', 'Verificar rollout', 'Prueba de humo']) {
+                if (env.BRANCH_NAME == 'main' && env.DEPLOY_TOUCHED == 'true') {
                     withCredentials([file(credentialsId: 'kubeconfig-k8s', variable: 'KUBECONFIG')]) {
-                        sh 'kubectl -n ${NAMESPACE} rollout undo deployment/${DEPLOYMENT} || true'
+                        sh '''
+                            kubectl -n ${NAMESPACE} rollout undo deployment/${DEPLOYMENT}
+                            kubectl -n ${NAMESPACE} rollout status deployment/${DEPLOYMENT} --timeout=120s
+                        '''
                     }
+                    echo 'Reversion automatica ejecutada'
                 }
             }
             echo 'Pipeline en ROJO'
@@ -155,7 +154,7 @@ pipeline {
             echo "Pipeline en VERDE. Version desplegada: ${env.IMAGE_TAG}"
         }
         always {
-            sh 'docker image prune -f || true'    // evita que las imagenes llenen el disco de VM-TOOLS
+            sh 'docker image prune -af --filter "until=24h" || true'
         }
     }
 }
