@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-import app as app_module
+import app.app as app_module
 
 
 @pytest.fixture()
