@@ -42,8 +42,7 @@ pipeline {
             steps {
                 sh '''
                     pip install --no-cache-dir -r app/requirements-dev.txt
-                    cd app
-                    python -m pytest tests --cov=app --cov-report=xml:../coverage.xml --cov-fail-under=60 -q
+                    python -m pytest app/tests --cov=app.app --cov-report=xml:coverage.xml --cov-fail-under=60 -q
                 '''
                 stash name: 'coverage', includes: 'coverage.xml'
             }
